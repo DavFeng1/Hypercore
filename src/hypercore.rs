@@ -1,29 +1,17 @@
 use crate::block::Block;
+use crate::transaction::Transaction;
 use crate::wallet::Wallet;
-use chrono::Utc;
 
-// Base
 pub struct Hypercore {
   pub blocks: Vec<Block>,
   pub wallets: Vec<Wallet>,
 }
 
 impl Hypercore {
-  pub fn init() -> Self {
+  pub fn create() -> Self {
     println!("💎 Initializing hypercore...");
-    /*
-     * Initialize the chain with a gensis block
-     */
-    let genesis_block = Block {
-      id: 0,
-      timestamp: Utc::now().timestamp(),
-      previous_hash: String::from("genesis"),
-      nonce: 2836,
-      hash: String::from("000f2828694d5b4c43"),
-    };
-
     Self {
-      blocks: vec![genesis_block],
+      blocks: vec![Block::generate_genesis()],
       wallets: vec![],
     }
   }
@@ -34,36 +22,58 @@ impl Hypercore {
     wallet
   }
 
-  pub fn add_core(&mut self, block: Block) {
-    /*
-     * Attach a core to the current chain.
-     */
-    let latest_block = self.blocks.last().expect("there is at least one block");
-
-    // Verifier = crypto.createVerify('sha256')
-    // verifier update the transaction
-    // Check if transsation is valid
-    if self.is_core_valid(&block, latest_block) {
-      self.blocks.push(block);
+  pub fn add_block_to_chain(&mut self, block: Block) {
+    if self.is_block_valid(block.clone()) {
+      self.blocks.push(block.clone());
+      println!("📦 new block added: {}", block);
     } else {
       log::error!("could not add a block - block invalid")
     }
   }
 
-  pub fn is_core_valid(&self, block: &Block, previous_block: &Block) -> bool {
-    /*
-     * Check whether an incoming core is valid
-     * by validating the previous_hash field
-     */
-    if block.previous_hash != previous_block.hash {
-      log::warn!("block with id {} has invalid previous_hash", block.id);
+  pub fn send_money(
+    &mut self,
+    amount: u64,
+    mut from_wallet: Wallet,
+    to_wallet: Wallet,
+  ) {
+    println!("🧾 creating transaction for {} ", amount);
+
+    let signature =
+      from_wallet.create_signature(amount, to_wallet.clone());
+
+    let transaction = Transaction::create(
+      amount,
+      from_wallet.public_key,
+      to_wallet.public_key,
+      signature,
+    );
+
+    let latest_block = self.get_latest_block();
+
+    let transaction_block =
+      Block::create(latest_block.hash.clone(), transaction);
+
+    self.add_block_to_chain(transaction_block.clone());
+  }
+
+  pub fn is_block_valid(&self, block: Block) -> bool {
+    let latest_block = self.get_latest_block();
+
+    if block.previous_hash != latest_block.hash {
+      log::warn!(
+        "block with hash {} has invalid previous_hash",
+        block.hash
+      );
+
       false;
     }
+
     true
   }
 
-  pub fn is_chain_valid(&self, chain: &[Block]) -> bool {
-    for i in 0..chain.len() {}
-    true
+  pub fn get_latest_block(&self) -> Block {
+    let last_block = self.blocks.last().expect("chain is invalid");
+    last_block.clone()
   }
 }
